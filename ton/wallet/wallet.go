@@ -3,6 +3,7 @@ package wallet
 import (
 	"bytes"
 	"context"
+	"crypto"
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/ed25519"
@@ -19,6 +20,7 @@ import (
 
 	"github.com/xssnick/tonutils-go/ton"
 
+	"github.com/islishude/bip32"
 	"github.com/xssnick/tonutils-go/address"
 	"github.com/xssnick/tonutils-go/tlb"
 	"github.com/xssnick/tonutils-go/tvm/cell"
@@ -155,6 +157,15 @@ type Wallet struct {
 
 	// Stores a pointer to implementation of the version related functionality
 	spec any
+
+	xprv *bip32.XPrv
+}
+
+func (w *Wallet) Public() crypto.PublicKey {
+	if w.xprv != nil {
+		return w.xprv.PublicKey()
+	}
+	return w.key.Public()
 }
 
 func FromPrivateKey(api TonAPI, key ed25519.PrivateKey, version VersionConfig) (*Wallet, error) {
@@ -175,6 +186,37 @@ func FromPrivateKey(api TonAPI, key ed25519.PrivateKey, version VersionConfig) (
 	w := &Wallet{
 		api:       api,
 		key:       key,
+		addr:      addr,
+		ver:       version,
+		subwallet: subwallet,
+	}
+
+	w.spec, err = getSpec(w)
+	if err != nil {
+		return nil, err
+	}
+
+	return w, nil
+}
+
+func FromXPrv(api TonAPI, xprv *bip32.XPrv, version VersionConfig) (*Wallet, error) {
+	var subwallet uint32 = DefaultSubwallet
+
+	// default subwallet depends on wallet type
+	switch version.(type) {
+	case ConfigV5R1Beta:
+	case ConfigV5R1Final:
+		subwallet = 0
+	}
+
+	addr, err := AddressFromPubKey(xprv.PublicKey(), version, subwallet)
+	if err != nil {
+		return nil, err
+	}
+
+	w := &Wallet{
+		api:       api,
+		xprv:      xprv,
 		addr:      addr,
 		ver:       version,
 		subwallet: subwallet,
@@ -335,7 +377,7 @@ func (w *Wallet) BuildExternalMessageForMany(ctx context.Context, messages []*Me
 func (w *Wallet) PrepareExternalMessageForMany(ctx context.Context, withStateInit bool, messages []*Message) (_ *tlb.ExternalMessage, err error) {
 	var stateInit *tlb.StateInit
 	if withStateInit {
-		stateInit, err = GetStateInit(w.key.Public().(ed25519.PublicKey), w.ver, w.subwallet)
+		stateInit, err = GetStateInit(w.Public().(ed25519.PublicKey), w.ver, w.subwallet)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get state init: %w", err)
 		}

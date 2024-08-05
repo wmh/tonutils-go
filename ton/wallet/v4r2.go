@@ -4,9 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
+
 	"github.com/xssnick/tonutils-go/tlb"
 	"github.com/xssnick/tonutils-go/ton"
-	"time"
 
 	"github.com/xssnick/tonutils-go/tvm/cell"
 )
@@ -48,7 +49,12 @@ func (s *SpecV4R2) BuildMessage(ctx context.Context, _ bool, _ *ton.BlockIDExt, 
 		payload.MustStoreUInt(uint64(message.Mode), 8).MustStoreRef(intMsg)
 	}
 
-	sign := payload.EndCell().Sign(s.wallet.key)
+	var sign []byte
+	if s.wallet.xprv != nil {
+		sign = s.wallet.xprv.Sign(payload.EndCell().Hash())
+	} else {
+		sign = payload.EndCell().Sign(s.wallet.key)
+	}
 	msg := cell.BeginCell().MustStoreSlice(sign, 512).MustStoreBuilder(payload).EndCell()
 
 	return msg, nil
