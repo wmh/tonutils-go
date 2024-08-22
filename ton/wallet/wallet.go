@@ -163,7 +163,7 @@ type Wallet struct {
 
 func (w *Wallet) Public() crypto.PublicKey {
 	if w.xprv != nil {
-		return w.xprv.PublicKey()
+		return ed25519.PublicKey(w.xprv.PublicKey())
 	}
 	return w.key.Public()
 }
