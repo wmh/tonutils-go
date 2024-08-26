@@ -4,9 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math/big"
+
 	"github.com/xssnick/tonutils-go/tlb"
 	"github.com/xssnick/tonutils-go/tvm/cell"
-	"math/big"
 )
 
 // code hex from https://github.com/ton-blockchain/highload-wallet-contract-v3/commit/3d2843747b14bc2a8915606df736d47490cd3d49
@@ -83,8 +84,15 @@ func (s *SpecHighloadV3) BuildMessage(ctx context.Context, messages []*Message) 
 		MustStoreUInt(uint64(s.config.MessageTTL), 22).
 		EndCell()
 
+	var sign []byte
+	if s.wallet.xprv != nil {
+		sign = s.wallet.xprv.Sign(payload.Hash())
+	} else {
+		sign = payload.Sign(s.wallet.key)
+	}
+
 	return cell.BeginCell().
-		MustStoreSlice(payload.Sign(s.wallet.key), 512).
+		MustStoreSlice(sign, 512).
 		MustStoreRef(payload).EndCell(), nil
 }
 
